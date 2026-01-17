@@ -4,10 +4,13 @@
 //! and libproc to map ports to processes.
 
 use std::collections::{HashMap, HashSet};
-use std::process::Command;
 use std::ptr;
 
 use libc::{c_int, c_void, size_t};
+use libproc::libproc::file_info::{pidfdinfo, ListFDs, ProcFDType};
+use libproc::libproc::net_info::SocketFDInfo;
+use libproc::libproc::proc_pid::{listpidinfo, name};
+use libproc::processes::{pids_by_type, ProcFilter};
 
 use crate::error::{PortDetectionError, Result};
 use crate::ports::ListeningPort;
@@ -48,11 +51,6 @@ pub fn get_listening_ports() -> Result<Vec<ListeningPort>> {
     // Use sysctl to get all listening ports (reliable, no permission issues)
     let listening_ports = get_listening_ports_sysctl()?;
 
-    if listening_ports.is_empty() {
-        // Fallback to lsof if sysctl fails
-        return get_listening_ports_lsof();
-    }
-
     // Try to get PID info via libproc for each port
     let port_to_pid = build_port_to_pid_map(&listening_ports);
 
@@ -60,14 +58,14 @@ pub fn get_listening_ports() -> Result<Vec<ListeningPort>> {
     let mut result: Vec<ListeningPort> = listening_ports
         .into_iter()
         .map(|port| {
-            let (pid, name) = port_to_pid
+            let (pid, proc_name) = port_to_pid
                 .get(&port)
                 .cloned()
                 .unwrap_or((None, None));
             ListeningPort {
                 port,
                 pid,
-                process_name: name,
+                process_name: proc_name,
             }
         })
         .collect();
@@ -139,7 +137,6 @@ fn get_listening_ports_sysctl() -> Result<Vec<u16>> {
     const XTCPCB_SIZE: usize = 524;
     const T_STATE_OFFSET: usize = 244;
     const INP_LPORT_OFFSET: usize = 22;
-    const INP_FPORT_OFFSET: usize = 20;
 
     // First entry is xinpgen header (24 bytes)
     if actual_len < 24 {
@@ -193,80 +190,71 @@ fn get_listening_ports_sysctl() -> Result<Vec<u16>> {
     Ok(listening_ports.into_iter().collect())
 }
 
-/// Builds a map from port number to (PID, process name) using lsof.
-/// This is a fallback for getting PID info since libproc socket info is restricted.
+/// Builds a map from port number to (PID, process name) using libproc.
+/// Iterates all processes and their file descriptors to find socket owners.
 fn build_port_to_pid_map(ports: &[u16]) -> HashMap<u16, (Option<i32>, Option<String>)> {
     let mut map = HashMap::new();
 
-    // Use lsof to get PID info for the listening ports
-    let output = match Command::new("lsof")
-        .args(["-iTCP", "-sTCP:LISTEN", "-P", "-n", "-F", "pcn"])
-        .output()
-    {
-        Ok(o) if o.status.success() => o,
-        _ => return map,
+    if ports.is_empty() {
+        return map;
+    }
+
+    // Convert to HashSet for faster lookups
+    let port_set: HashSet<u16> = ports.iter().copied().collect();
+
+    // Get all PIDs on the system
+    let pids = match pids_by_type(ProcFilter::All) {
+        Ok(pids) => pids,
+        Err(_) => return map,
     };
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut current_pid: Option<i32> = None;
-    let mut current_name: Option<String> = None;
+    for pid in pids {
+        let pid_i32 = pid as i32;
 
-    for line in stdout.lines() {
-        if line.starts_with('p') {
-            current_pid = line[1..].parse().ok();
-        } else if line.starts_with('c') {
-            current_name = Some(line[1..].to_string());
-        } else if line.starts_with('n') {
-            if let Some(port_str) = line.rsplit(':').next() {
-                if let Ok(port) = port_str.parse::<u16>() {
-                    if ports.contains(&port) {
-                        map.entry(port).or_insert((current_pid, current_name.clone()));
-                    }
+        // List file descriptors for this process
+        // First get count, then get the actual list
+        let fds = match listpidinfo::<ListFDs>(pid_i32, 256) {
+            Ok(fds) => fds,
+            Err(_) => continue,
+        };
+
+        for fd_info in fds {
+            // Check if this is a socket file descriptor
+            if fd_info.proc_fdtype != ProcFDType::Socket as u32 {
+                continue;
+            }
+
+            // Get socket details
+            let socket = match pidfdinfo::<SocketFDInfo>(pid_i32, fd_info.proc_fd) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+
+            // Access the socket info - check if it's a TCP socket
+            // soi_kind: 2 = SOCKINFO_TCP
+            if socket.psi.soi_kind != 2 {
+                continue;
+            }
+
+            // Access TCP-specific info via the union
+            // SAFETY: We've verified soi_kind == 2 (TCP), so pri_tcp is valid
+            let tcp_info = unsafe { socket.psi.soi_proto.pri_tcp };
+            let local_port = u16::from_be(tcp_info.tcpsi_ini.insi_lport as u16);
+
+            // Check if this is a port we're looking for
+            if local_port > 0 && port_set.contains(&local_port) && !map.contains_key(&local_port) {
+                let proc_name = name(pid_i32).ok();
+                map.insert(local_port, (Some(pid_i32), proc_name));
+
+                // Early exit if we've found all ports
+                if map.len() == port_set.len() {
+                    return map;
                 }
             }
         }
     }
 
     map
-}
-
-/// Gets listening ports using lsof (fallback).
-fn get_listening_ports_lsof() -> Result<Vec<ListeningPort>> {
-    let output = Command::new("lsof")
-        .args(["-iTCP", "-sTCP:LISTEN", "-P", "-n", "-F", "pcn"])
-        .output()
-        .map_err(|e| PortDetectionError::ProcessEnumFailed(format!("lsof failed: {}", e)))?;
-
-    if !output.status.success() {
-        return Ok(vec![]);
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut ports: HashMap<u16, ListeningPort> = HashMap::new();
-    let mut current_pid: Option<i32> = None;
-    let mut current_name: Option<String> = None;
-
-    for line in stdout.lines() {
-        if line.starts_with('p') {
-            current_pid = line[1..].parse().ok();
-        } else if line.starts_with('c') {
-            current_name = Some(line[1..].to_string());
-        } else if line.starts_with('n') {
-            if let Some(port_str) = line.rsplit(':').next() {
-                if let Ok(port) = port_str.parse::<u16>() {
-                    ports.entry(port).or_insert_with(|| ListeningPort {
-                        port,
-                        pid: current_pid,
-                        process_name: current_name.clone(),
-                    });
-                }
-            }
-        }
-    }
-
-    let mut result: Vec<_> = ports.into_values().collect();
-    result.sort_by_key(|p| p.port);
-    Ok(result)
 }
 
 #[cfg(test)]
