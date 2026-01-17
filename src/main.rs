@@ -1,0 +1,180 @@
+//! Port Manager CLI - manage port allocations across projects.
+
+mod cli;
+mod config;
+mod display;
+mod error;
+mod ports;
+mod registry;
+
+use clap::Parser;
+
+use cli::{Cli, Command};
+use config::{load_registry, registry_path, save_registry};
+use display::{
+    build_allocated_port_list, display_allocated_ports, display_config, display_query,
+    display_status, display_suggestions,
+};
+use error::Result;
+use ports::get_listening_ports;
+use registry::{allocate_port, free_port, query_ports, suggest_port};
+
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error: {e}");
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<()> {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Command::Allocate {
+            project,
+            name,
+            port,
+        } => cmd_allocate(&project, &name, port),
+
+        Command::Free { project, name } => cmd_free(&project, name.as_deref()),
+
+        Command::List { active, unassigned } => cmd_list(active, unassigned),
+
+        Command::Query { project, name } => cmd_query(&project, name.as_deref()),
+
+        Command::Status => cmd_status(),
+
+        Command::Suggest { r#type, count } => cmd_suggest(&r#type, count),
+
+        Command::Config { path, set } => cmd_config(path, set),
+    }
+}
+
+fn cmd_allocate(project: &str, name: &str, port: Option<u16>) -> Result<()> {
+    let mut registry = load_registry()?;
+    let active_ports = get_listening_ports().unwrap_or_default();
+
+    let allocated = allocate_port(&mut registry, project, name, port, &active_ports)?;
+    save_registry(&registry)?;
+
+    println!("Allocated {project}.{name} = {allocated}");
+    Ok(())
+}
+
+fn cmd_free(project: &str, name: Option<&str>) -> Result<()> {
+    let mut registry = load_registry()?;
+
+    let freed = free_port(&mut registry, project, name)?;
+    save_registry(&registry)?;
+
+    for (port_name, port) in freed {
+        println!("Freed {project}.{port_name} (was {port})");
+    }
+
+    Ok(())
+}
+
+fn cmd_list(active_only: bool, unassigned_only: bool) -> Result<()> {
+    let registry = load_registry()?;
+    let listening = get_listening_ports().unwrap_or_default();
+
+    if unassigned_only {
+        // Show only unassigned listening ports
+        let unassigned: Vec<_> = listening
+            .iter()
+            .filter(|lp| registry.find_port_owner(lp.port).is_none())
+            .cloned()
+            .collect();
+        display_status(&unassigned, &registry);
+    } else {
+        let ports = build_allocated_port_list(&registry, &listening, active_only);
+        display_allocated_ports(&ports);
+    }
+
+    Ok(())
+}
+
+fn cmd_query(project: &str, name: Option<&str>) -> Result<()> {
+    let registry = load_registry()?;
+
+    let ports = query_ports(&registry, project, name)?;
+
+    if ports.is_empty() {
+        // No output for scripting - exit success but empty
+        return Ok(());
+    }
+
+    display_query(&ports, name.is_some());
+    Ok(())
+}
+
+fn cmd_status() -> Result<()> {
+    let registry = load_registry()?;
+    let listening = get_listening_ports()?;
+
+    display_status(&listening, &registry);
+    Ok(())
+}
+
+fn cmd_suggest(port_type: &str, count: usize) -> Result<()> {
+    let registry = load_registry()?;
+    let active_ports = get_listening_ports().unwrap_or_default();
+
+    let suggestions = suggest_port(&registry, port_type, count, &active_ports)?;
+    display_suggestions(&suggestions, port_type);
+
+    Ok(())
+}
+
+fn cmd_config(show_path: bool, set_range: Option<String>) -> Result<()> {
+    let mut registry = load_registry()?;
+    let path = registry_path()?;
+
+    if let Some(range_spec) = set_range {
+        // Parse "type=start-end"
+        let parts: Vec<&str> = range_spec.splitn(2, '=').collect();
+        if parts.len() != 2 {
+            eprintln!("Invalid format. Use: type=start-end (e.g., web=8000-8999)");
+            std::process::exit(1);
+        }
+
+        let type_name = parts[0];
+        let range_parts: Vec<&str> = parts[1].splitn(2, '-').collect();
+        if range_parts.len() != 2 {
+            eprintln!("Invalid range format. Use: start-end (e.g., 8000-8999)");
+            std::process::exit(1);
+        }
+
+        let start: u16 = range_parts[0].parse().unwrap_or_else(|_| {
+            eprintln!("Invalid start port: {}", range_parts[0]);
+            std::process::exit(1);
+        });
+
+        let end: u16 = range_parts[1].parse().unwrap_or_else(|_| {
+            eprintln!("Invalid end port: {}", range_parts[1]);
+            std::process::exit(1);
+        });
+
+        if start >= end {
+            eprintln!("Start port must be less than end port");
+            std::process::exit(1);
+        }
+
+        registry
+            .defaults
+            .ranges
+            .insert(type_name.to_string(), [start, end]);
+        save_registry(&registry)?;
+
+        println!("Set {type_name} range to {start}-{end}");
+        return Ok(());
+    }
+
+    if show_path {
+        display_config(&registry, Some(&path));
+    } else {
+        display_config(&registry, None);
+    }
+
+    Ok(())
+}

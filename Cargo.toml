@@ -1,0 +1,20 @@
+[package]
+name = "port-manager"
+version = "0.1.0"
+edition = "2021"
+description = "CLI tool for managing port allocations across projects"
+authors = ["Jon"]
+license = "MIT"
+
+[[bin]]
+name = "pm"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+dirs = "5"
+comfy-table = "7"
+libc = "0.2"
+thiserror = "1"
