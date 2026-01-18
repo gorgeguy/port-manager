@@ -60,7 +60,13 @@ fn default_ranges() -> BTreeMap<String, [u16; 2]> {
 }
 
 /// Returns the path to the registry file.
+///
+/// Respects the `PM_CONFIG_PATH` environment variable if set,
+/// otherwise uses the system config directory.
 pub fn registry_path() -> std::result::Result<PathBuf, ConfigError> {
+    if let Ok(path) = std::env::var("PM_CONFIG_PATH") {
+        return Ok(PathBuf::from(path));
+    }
     let config_dir = dirs::config_dir().ok_or(ConfigError::NoConfigDir)?;
     Ok(config_dir.join("port-manager").join("registry.toml"))
 }
