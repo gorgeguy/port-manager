@@ -13,8 +13,9 @@ use clap::Parser;
 
 use cli::{Cli, Command};
 use display::{
-    build_allocated_port_list, display_allocated_ports, display_config, display_query,
-    display_status, display_suggestions,
+    build_allocated_port_list, build_status_port_list, display_allocated_ports,
+    display_allocated_ports_json, display_config, display_query, display_status,
+    display_status_json, display_suggestions,
 };
 use error::Result;
 use persistence::{load_registry, registry_path, with_registry_mut};
@@ -41,11 +42,15 @@ fn run() -> Result<()> {
 
         Command::Free { project, name } => cmd_free(&project, name.as_deref()),
 
-        Command::List { active, unassigned } => cmd_list(active, unassigned),
+        Command::List {
+            active,
+            unassigned,
+            json,
+        } => cmd_list(active, unassigned, json),
 
         Command::Query { project, name } => cmd_query(&project, name.as_deref()),
 
-        Command::Status => cmd_status(),
+        Command::Status { json } => cmd_status(json),
 
         Command::Suggest { r#type, count } => cmd_suggest(&r#type, count),
 
@@ -73,7 +78,7 @@ fn cmd_free(project: &str, name: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-fn cmd_list(active_only: bool, unassigned_only: bool) -> Result<()> {
+fn cmd_list(active_only: bool, unassigned_only: bool, json: bool) -> Result<()> {
     let registry = load_registry()?;
     let listening = get_listening_ports().unwrap_or_default();
 
@@ -84,10 +89,19 @@ fn cmd_list(active_only: bool, unassigned_only: bool) -> Result<()> {
             .filter(|lp| registry.find_port_owner(lp.port).is_none())
             .cloned()
             .collect();
-        display_status(&unassigned, &registry);
+        if json {
+            let ports = build_status_port_list(&unassigned, &registry);
+            display_status_json(&ports);
+        } else {
+            display_status(&unassigned, &registry);
+        }
     } else {
         let ports = build_allocated_port_list(&registry, &listening, active_only);
-        display_allocated_ports(&ports);
+        if json {
+            display_allocated_ports_json(&ports);
+        } else {
+            display_allocated_ports(&ports);
+        }
     }
 
     Ok(())
@@ -107,11 +121,16 @@ fn cmd_query(project: &str, name: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-fn cmd_status() -> Result<()> {
+fn cmd_status(json: bool) -> Result<()> {
     let registry = load_registry()?;
     let listening = get_listening_ports()?;
 
-    display_status(&listening, &registry);
+    if json {
+        let ports = build_status_port_list(&listening, &registry);
+        display_status_json(&ports);
+    } else {
+        display_status(&listening, &registry);
+    }
     Ok(())
 }
 

@@ -20,9 +20,9 @@ libc = "0.2"
 libproc = "0.14"
 thiserror = "1"
 fs2 = "0.4.3"
+serde_json = "1"
 
 [dev-dependencies]
-serde_json = "1"
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3"

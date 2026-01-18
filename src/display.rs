@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL_CONDENSED;
 use comfy_table::{Cell, Color, ContentArrangement, Table, TableComponent};
+use serde::Serialize;
 
 use crate::model::Registry;
 use crate::port::Port;
@@ -28,7 +29,8 @@ fn create_table() -> Table {
 }
 
 /// Status of an allocated port.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum PortStatus {
     /// Port is allocated but not currently listening.
     Idle,
@@ -37,14 +39,25 @@ pub enum PortStatus {
 }
 
 /// Information about an allocated port for display.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct AllocatedPortInfo {
     pub project: String,
     pub name: String,
     pub port: Port,
     pub status: PortStatus,
     pub pid: Option<i32>,
+    #[serde(rename = "process")]
     pub process_name: Option<String>,
+}
+
+/// Information about a listening port for JSON status output.
+#[derive(Debug, Serialize)]
+pub struct StatusPortInfo {
+    pub port: Port,
+    pub project: Option<String>,
+    pub name: Option<String>,
+    pub pid: Option<i32>,
+    pub process: Option<String>,
 }
 
 /// Displays the allocated ports table.
@@ -208,4 +221,40 @@ pub fn build_allocated_port_list(
     result.sort_by(|a, b| (&a.project, &a.name).cmp(&(&b.project, &b.name)));
 
     result
+}
+
+/// Builds the list of listening ports with ownership info for JSON status output.
+pub fn build_status_port_list(
+    listening: &[ListeningPort],
+    registry: &Registry,
+) -> Vec<StatusPortInfo> {
+    listening
+        .iter()
+        .map(|lp| {
+            let (project, name) = registry
+                .find_port_owner(lp.port)
+                .map(|(p, n)| (Some(p.to_string()), Some(n.to_string())))
+                .unwrap_or((None, None));
+
+            StatusPortInfo {
+                port: lp.port,
+                project,
+                name,
+                pid: lp.pid,
+                process: lp.process_name.clone(),
+            }
+        })
+        .collect()
+}
+
+/// Displays allocated ports as JSON.
+pub fn display_allocated_ports_json(ports: &[AllocatedPortInfo]) {
+    let json = serde_json::to_string_pretty(ports).expect("Failed to serialize to JSON");
+    println!("{json}");
+}
+
+/// Displays status (listening ports) as JSON.
+pub fn display_status_json(ports: &[StatusPortInfo]) {
+    let json = serde_json::to_string_pretty(ports).expect("Failed to serialize to JSON");
+    println!("{json}");
 }

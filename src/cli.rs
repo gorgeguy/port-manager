@@ -52,6 +52,10 @@ pub enum Command {
         /// Only show unassigned listening ports (for status-like output)
         #[arg(long)]
         unassigned: bool,
+
+        /// Output as JSON for scripting
+        #[arg(long)]
+        json: bool,
     },
 
     /// Query port(s) for a project (for scripting).
@@ -70,7 +74,11 @@ pub enum Command {
     ///
     /// Displays both assigned and unassigned ports.
     #[command(visible_alias = "s")]
-    Status,
+    Status {
+        /// Output as JSON for scripting
+        #[arg(long)]
+        json: bool,
+    },
 
     /// Suggest available ports.
     #[command(visible_alias = "sg")]

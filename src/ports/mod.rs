@@ -6,11 +6,13 @@
 #[cfg(target_os = "macos")]
 mod macos;
 
+use serde::Serialize;
+
 use crate::error::Result;
 use crate::port::Port;
 
 /// Information about a listening port.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ListeningPort {
     /// The port number.
     pub port: Port,
