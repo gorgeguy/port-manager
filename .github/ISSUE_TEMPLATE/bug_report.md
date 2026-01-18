@@ -26,7 +26,7 @@ What actually happened.
 ## Environment
 
 - OS: [e.g., macOS 14.0]
-- Port Manager version: [e.g., 0.1.0]
+- Port Manager version: [e.g., 1.0.0]
 - Rust version (if building from source): [e.g., 1.75.0]
 
 ## Additional Context
