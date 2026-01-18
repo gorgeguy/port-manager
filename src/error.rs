@@ -1,7 +1,10 @@
 //! Error types for the port manager CLI.
 
 use std::path::PathBuf;
+
 use thiserror::Error;
+
+use crate::port::Port;
 
 /// Main error type for port manager operations.
 #[derive(Error, Debug)]
@@ -60,7 +63,7 @@ pub enum RegistryError {
     PortNameNotFound { project: String, name: String },
 
     #[error("Port {0} is already allocated")]
-    PortAlreadyAllocated(u16),
+    PortAlreadyAllocated(Port),
 
     #[error("Port name '{name}' already exists in project '{project}'")]
     PortNameExists { project: String, name: String },
@@ -70,7 +73,7 @@ pub enum RegistryError {
 
     #[error("Port {port} is in use by {process_name} (PID {pid})")]
     PortInUse {
-        port: u16,
+        port: Port,
         pid: i32,
         process_name: String,
     },

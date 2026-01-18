@@ -19,3 +19,6 @@ comfy-table = "7"
 libc = "0.2"
 libproc = "0.14"
 thiserror = "1"
+
+[dev-dependencies]
+serde_json = "1"

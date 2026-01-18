@@ -13,6 +13,7 @@ use libproc::libproc::proc_pid::{listpidinfo, name};
 use libproc::processes::{pids_by_type, ProcFilter};
 
 use crate::error::{PortDetectionError, Result};
+use crate::port::Port;
 use crate::ports::ListeningPort;
 
 // sysctl MIB constants (verified from macOS headers)
@@ -49,24 +50,23 @@ extern "C" {
 /// Gets all listening TCP ports on the system.
 pub fn get_listening_ports() -> Result<Vec<ListeningPort>> {
     // Use sysctl to get all listening ports (reliable, no permission issues)
-    let listening_ports = get_listening_ports_sysctl()?;
+    let listening_ports_raw = get_listening_ports_sysctl()?;
 
     // Try to get PID info via libproc for each port
-    let port_to_pid = build_port_to_pid_map(&listening_ports);
+    let port_to_pid = build_port_to_pid_map(&listening_ports_raw);
 
-    // Combine port list with PID info
-    let mut result: Vec<ListeningPort> = listening_ports
+    // Combine port list with PID info, converting raw u16 to Port
+    let mut result: Vec<ListeningPort> = listening_ports_raw
         .into_iter()
-        .map(|port| {
-            let (pid, proc_name) = port_to_pid
-                .get(&port)
-                .cloned()
-                .unwrap_or((None, None));
-            ListeningPort {
+        .filter_map(|port_num| {
+            // Port::new only fails for port 0, which we filter out in get_listening_ports_sysctl
+            let port = Port::new(port_num).ok()?;
+            let (pid, proc_name) = port_to_pid.get(&port_num).cloned().unwrap_or((None, None));
+            Some(ListeningPort {
                 port,
                 pid,
                 process_name: proc_name,
-            }
+            })
         })
         .collect();
 
@@ -81,25 +81,14 @@ fn get_listening_ports_sysctl() -> Result<Vec<u16>> {
 
     // First call to get buffer size
     let mut len: size_t = 0;
-    let ret = unsafe {
-        sysctl(
-            mib.as_ptr(),
-            4,
-            ptr::null_mut(),
-            &mut len,
-            ptr::null(),
-            0,
-        )
-    };
+    let ret = unsafe { sysctl(mib.as_ptr(), 4, ptr::null_mut(), &mut len, ptr::null(), 0) };
     if ret < 0 || len == 0 {
         let errno = std::io::Error::last_os_error();
-        return Err(
-            PortDetectionError::ProcessEnumFailed(format!(
-                "sysctl size query failed: ret={}, len={}, errno={}",
-                ret, len, errno
-            ))
-            .into(),
-        );
+        return Err(PortDetectionError::ProcessEnumFailed(format!(
+            "sysctl size query failed: ret={}, len={}, errno={}",
+            ret, len, errno
+        ))
+        .into());
     }
 
     // Allocate buffer with some extra space (the size can change between calls)

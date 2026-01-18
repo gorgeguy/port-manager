@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use crate::config::Registry;
 use crate::error::{RegistryError, Result};
+use crate::port::Port;
 use crate::ports::ListeningPort;
 
 /// Allocates a port to a project with a given name.
@@ -13,9 +14,9 @@ pub fn allocate_port(
     registry: &mut Registry,
     project: &str,
     name: &str,
-    port: Option<u16>,
+    port: Option<Port>,
     active_ports: &[ListeningPort],
-) -> Result<u16> {
+) -> Result<Port> {
     // Check if port name already exists in project
     if let Some(proj) = registry.projects.get(project) {
         if proj.ports.contains_key(name) {
@@ -38,7 +39,10 @@ pub fn allocate_port(
                 return Err(RegistryError::PortInUse {
                     port: p,
                     pid: active.pid.unwrap_or(0),
-                    process_name: active.process_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                    process_name: active
+                        .process_name
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string()),
                 }
                 .into());
             }
@@ -60,10 +64,7 @@ pub fn allocate_port(
     };
 
     // Get or create the project
-    let proj = registry
-        .projects
-        .entry(project.to_string())
-        .or_default();
+    let proj = registry.projects.entry(project.to_string()).or_default();
 
     proj.ports.insert(name.to_string(), allocated_port);
 
@@ -78,7 +79,7 @@ pub fn free_port(
     registry: &mut Registry,
     project: &str,
     name: Option<&str>,
-) -> Result<Vec<(String, u16)>> {
+) -> Result<Vec<(String, Port)>> {
     let proj = registry
         .projects
         .get_mut(project)
@@ -86,10 +87,13 @@ pub fn free_port(
 
     let freed = match name {
         Some(n) => {
-            let port = proj.ports.remove(n).ok_or_else(|| RegistryError::PortNameNotFound {
-                project: project.to_string(),
-                name: n.to_string(),
-            })?;
+            let port = proj
+                .ports
+                .remove(n)
+                .ok_or_else(|| RegistryError::PortNameNotFound {
+                    project: project.to_string(),
+                    name: n.to_string(),
+                })?;
             vec![(n.to_string(), port)]
         }
         None => {
@@ -117,15 +121,17 @@ pub fn suggest_port(
     port_type: &str,
     count: usize,
     active_ports: &[ListeningPort],
-) -> Result<Vec<u16>> {
+) -> Result<Vec<Port>> {
     let range = registry.get_range(port_type);
 
     // Collect all ports to exclude
-    let allocated: HashSet<u16> = registry.all_allocated_ports().into_iter().collect();
-    let active: HashSet<u16> = active_ports.iter().map(|p| p.port).collect();
+    let allocated: HashSet<Port> = registry.all_allocated_ports().into_iter().collect();
+    let active: HashSet<Port> = active_ports.iter().map(|p| p.port).collect();
 
     let mut suggestions = Vec::new();
-    for port in range[0]..=range[1] {
+    for port_num in range[0]..=range[1] {
+        // Port::new can only fail for port 0, which is never in a valid range
+        let port = Port::new(port_num).expect("port ranges contain valid ports");
         if !allocated.contains(&port) && !active.contains(&port) {
             suggestions.push(port);
             if suggestions.len() >= count {
@@ -149,10 +155,7 @@ pub fn suggest_port(
 ///
 /// The format is "type=start-end" (e.g., "web=8000-8999").
 /// Returns the parsed type name, start, and end ports on success.
-pub fn set_port_range(
-    registry: &mut Registry,
-    range_spec: &str,
-) -> Result<(String, u16, u16)> {
+pub fn set_port_range(registry: &mut Registry, range_spec: &str) -> Result<(String, u16, u16)> {
     // Parse "type=start-end"
     let parts: Vec<&str> = range_spec.splitn(2, '=').collect();
     if parts.len() != 2 {
@@ -193,7 +196,7 @@ pub fn query_ports(
     registry: &Registry,
     project: &str,
     name: Option<&str>,
-) -> Result<Vec<(String, u16)>> {
+) -> Result<Vec<(String, Port)>> {
     let proj = registry
         .projects
         .get(project)
@@ -201,10 +204,13 @@ pub fn query_ports(
 
     match name {
         Some(n) => {
-            let port = proj.ports.get(n).ok_or_else(|| RegistryError::PortNameNotFound {
-                project: project.to_string(),
-                name: n.to_string(),
-            })?;
+            let port = proj
+                .ports
+                .get(n)
+                .ok_or_else(|| RegistryError::PortNameNotFound {
+                    project: project.to_string(),
+                    name: n.to_string(),
+                })?;
             Ok(vec![(n.to_string(), *port)])
         }
         None => Ok(proj.ports.iter().map(|(k, v)| (k.clone(), *v)).collect()),
@@ -219,14 +225,19 @@ mod tests {
         Registry::default()
     }
 
+    fn port(n: u16) -> Port {
+        Port::new(n).unwrap()
+    }
+
     #[test]
     fn test_allocate_explicit_port() {
         let mut registry = empty_registry();
         let active = vec![];
 
-        let port = allocate_port(&mut registry, "webapp", "web", Some(8080), &active).unwrap();
-        assert_eq!(port, 8080);
-        assert_eq!(registry.projects["webapp"].ports["web"], 8080);
+        let allocated =
+            allocate_port(&mut registry, "webapp", "web", Some(port(8080)), &active).unwrap();
+        assert_eq!(allocated, port(8080));
+        assert_eq!(registry.projects["webapp"].ports["web"], port(8080));
     }
 
     #[test]
@@ -234,8 +245,8 @@ mod tests {
         let mut registry = empty_registry();
         let active = vec![];
 
-        let port = allocate_port(&mut registry, "webapp", "web", None, &active).unwrap();
-        assert_eq!(port, 8000); // First port in web range
+        let allocated = allocate_port(&mut registry, "webapp", "web", None, &active).unwrap();
+        assert_eq!(allocated, port(8000)); // First port in web range
     }
 
     #[test]
@@ -243,19 +254,19 @@ mod tests {
         let mut registry = empty_registry();
         let active = vec![
             ListeningPort {
-                port: 8000,
+                port: port(8000),
                 pid: Some(123),
                 process_name: Some("python".to_string()),
             },
             ListeningPort {
-                port: 8001,
+                port: port(8001),
                 pid: Some(124),
                 process_name: Some("node".to_string()),
             },
         ];
 
-        let port = allocate_port(&mut registry, "webapp", "web", None, &active).unwrap();
-        assert_eq!(port, 8002); // Skips 8000 and 8001
+        let allocated = allocate_port(&mut registry, "webapp", "web", None, &active).unwrap();
+        assert_eq!(allocated, port(8002)); // Skips 8000 and 8001
     }
 
     #[test]
@@ -263,12 +274,12 @@ mod tests {
         let mut registry = empty_registry();
         let active = vec![];
 
-        allocate_port(&mut registry, "webapp", "web", Some(8080), &active).unwrap();
-        let result = allocate_port(&mut registry, "backend", "api", Some(8080), &active);
+        allocate_port(&mut registry, "webapp", "web", Some(port(8080)), &active).unwrap();
+        let result = allocate_port(&mut registry, "backend", "api", Some(port(8080)), &active);
 
         assert!(matches!(
             result,
-            Err(crate::error::Error::Registry(RegistryError::PortAlreadyAllocated(8080)))
+            Err(crate::error::Error::Registry(RegistryError::PortAlreadyAllocated(p))) if p == port(8080)
         ));
     }
 
@@ -276,20 +287,20 @@ mod tests {
     fn test_allocate_explicit_port_in_use() {
         let mut registry = empty_registry();
         let active = vec![ListeningPort {
-            port: 8080,
+            port: port(8080),
             pid: Some(999),
             process_name: Some("python".to_string()),
         }];
 
-        let result = allocate_port(&mut registry, "webapp", "web", Some(8080), &active);
+        let result = allocate_port(&mut registry, "webapp", "web", Some(port(8080)), &active);
 
         assert!(matches!(
             result,
             Err(crate::error::Error::Registry(RegistryError::PortInUse {
-                port: 8080,
+                port: p,
                 pid: 999,
                 process_name: _,
-            }))
+            })) if p == port(8080)
         ));
     }
 
@@ -298,11 +309,11 @@ mod tests {
         let mut registry = empty_registry();
         let active = vec![];
 
-        allocate_port(&mut registry, "webapp", "web", Some(8080), &active).unwrap();
-        allocate_port(&mut registry, "webapp", "api", Some(3000), &active).unwrap();
+        allocate_port(&mut registry, "webapp", "web", Some(port(8080)), &active).unwrap();
+        allocate_port(&mut registry, "webapp", "api", Some(port(3000)), &active).unwrap();
 
         let freed = free_port(&mut registry, "webapp", Some("web")).unwrap();
-        assert_eq!(freed, vec![("web".to_string(), 8080)]);
+        assert_eq!(freed, vec![("web".to_string(), port(8080))]);
         assert!(!registry.projects["webapp"].ports.contains_key("web"));
         assert!(registry.projects["webapp"].ports.contains_key("api"));
     }
@@ -312,8 +323,8 @@ mod tests {
         let mut registry = empty_registry();
         let active = vec![];
 
-        allocate_port(&mut registry, "webapp", "web", Some(8080), &active).unwrap();
-        allocate_port(&mut registry, "webapp", "api", Some(3000), &active).unwrap();
+        allocate_port(&mut registry, "webapp", "web", Some(port(8080)), &active).unwrap();
+        allocate_port(&mut registry, "webapp", "api", Some(port(3000)), &active).unwrap();
 
         let freed = free_port(&mut registry, "webapp", None).unwrap();
         assert_eq!(freed.len(), 2);
@@ -325,8 +336,8 @@ mod tests {
         let mut registry = empty_registry();
         let active = vec![];
 
-        allocate_port(&mut registry, "webapp", "web", Some(8080), &active).unwrap();
-        allocate_port(&mut registry, "webapp", "api", Some(3000), &active).unwrap();
+        allocate_port(&mut registry, "webapp", "web", Some(port(8080)), &active).unwrap();
+        allocate_port(&mut registry, "webapp", "api", Some(port(3000)), &active).unwrap();
 
         let ports = query_ports(&registry, "webapp", None).unwrap();
         assert_eq!(ports.len(), 2);
@@ -337,10 +348,10 @@ mod tests {
         let mut registry = empty_registry();
         let active = vec![];
 
-        allocate_port(&mut registry, "webapp", "web", Some(8080), &active).unwrap();
+        allocate_port(&mut registry, "webapp", "web", Some(port(8080)), &active).unwrap();
 
         let ports = query_ports(&registry, "webapp", Some("web")).unwrap();
-        assert_eq!(ports, vec![("web".to_string(), 8080)]);
+        assert_eq!(ports, vec![("web".to_string(), port(8080))]);
     }
 
     #[test]
@@ -349,11 +360,11 @@ mod tests {
         let active = vec![];
 
         // Allocate first few ports
-        allocate_port(&mut registry, "p1", "web", Some(8000), &active).unwrap();
-        allocate_port(&mut registry, "p2", "web", Some(8001), &active).unwrap();
+        allocate_port(&mut registry, "p1", "web", Some(port(8000)), &active).unwrap();
+        allocate_port(&mut registry, "p2", "web", Some(port(8001)), &active).unwrap();
 
         let suggestions = suggest_port(&registry, "web", 3, &active).unwrap();
-        assert_eq!(suggestions, vec![8002, 8003, 8004]);
+        assert_eq!(suggestions, vec![port(8002), port(8003), port(8004)]);
     }
 
     #[test]
@@ -375,14 +386,18 @@ mod tests {
         let result = set_port_range(&mut registry, "custom5000-5999");
         assert!(matches!(
             result,
-            Err(crate::error::Error::Registry(RegistryError::InvalidRangeFormat))
+            Err(crate::error::Error::Registry(
+                RegistryError::InvalidRangeFormat
+            ))
         ));
 
         // Missing dash in range
         let result = set_port_range(&mut registry, "custom=50005999");
         assert!(matches!(
             result,
-            Err(crate::error::Error::Registry(RegistryError::InvalidRangeFormat))
+            Err(crate::error::Error::Registry(
+                RegistryError::InvalidRangeFormat
+            ))
         ));
     }
 
@@ -393,7 +408,9 @@ mod tests {
         let result = set_port_range(&mut registry, "custom=abc-5999");
         assert!(matches!(
             result,
-            Err(crate::error::Error::Registry(RegistryError::InvalidPortNumber(_)))
+            Err(crate::error::Error::Registry(
+                RegistryError::InvalidPortNumber(_)
+            ))
         ));
     }
 
@@ -404,14 +421,24 @@ mod tests {
         let result = set_port_range(&mut registry, "custom=5999-5000");
         assert!(matches!(
             result,
-            Err(crate::error::Error::Registry(RegistryError::InvalidPortRange { start: 5999, end: 5000 }))
+            Err(crate::error::Error::Registry(
+                RegistryError::InvalidPortRange {
+                    start: 5999,
+                    end: 5000
+                }
+            ))
         ));
 
         // Equal ports
         let result = set_port_range(&mut registry, "custom=5000-5000");
         assert!(matches!(
             result,
-            Err(crate::error::Error::Registry(RegistryError::InvalidPortRange { start: 5000, end: 5000 }))
+            Err(crate::error::Error::Registry(
+                RegistryError::InvalidPortRange {
+                    start: 5000,
+                    end: 5000
+                }
+            ))
         ));
     }
 }

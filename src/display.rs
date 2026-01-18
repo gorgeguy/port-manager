@@ -7,6 +7,7 @@ use comfy_table::presets::UTF8_FULL;
 use comfy_table::{Cell, Color, ContentArrangement, Table};
 
 use crate::config::Registry;
+use crate::port::Port;
 use crate::ports::ListeningPort;
 
 /// Status of an allocated port.
@@ -23,7 +24,7 @@ pub enum PortStatus {
 pub struct AllocatedPortInfo {
     pub project: String,
     pub name: String,
-    pub port: u16,
+    pub port: Port,
     pub status: PortStatus,
     pub pid: Option<i32>,
     pub process_name: Option<String>,
@@ -97,10 +98,7 @@ pub fn display_status(listening: &[ListeningPort], registry: &Registry) {
             .map(|p| p.to_string())
             .unwrap_or_else(|| "---".to_string());
 
-        let process_str = lp
-            .process_name
-            .clone()
-            .unwrap_or_else(|| "---".to_string());
+        let process_str = lp.process_name.clone().unwrap_or_else(|| "---".to_string());
 
         table.add_row(vec![
             Cell::new(lp.port),
@@ -115,7 +113,7 @@ pub fn display_status(listening: &[ListeningPort], registry: &Registry) {
 }
 
 /// Displays suggested ports.
-pub fn display_suggestions(ports: &[u16], port_type: &str) {
+pub fn display_suggestions(ports: &[Port], port_type: &str) {
     if ports.is_empty() {
         println!("No available ports in the '{port_type}' range.");
         return;
@@ -131,7 +129,7 @@ pub fn display_suggestions(ports: &[u16], port_type: &str) {
 }
 
 /// Displays query output for scripting.
-pub fn display_query(ports: &[(String, u16)], single_value: bool) {
+pub fn display_query(ports: &[(String, Port)], single_value: bool) {
     if single_value && ports.len() == 1 {
         // Just output the port number
         println!("{}", ports[0].1);
@@ -173,7 +171,7 @@ pub fn build_allocated_port_list(
     listening: &[ListeningPort],
     filter_active: bool,
 ) -> Vec<AllocatedPortInfo> {
-    let listening_map: HashMap<u16, &ListeningPort> =
+    let listening_map: HashMap<Port, &ListeningPort> =
         listening.iter().map(|lp| (lp.port, lp)).collect();
 
     let mut result = Vec::new();

@@ -4,6 +4,7 @@ mod cli;
 mod config;
 mod display;
 mod error;
+mod port;
 mod ports;
 mod registry;
 
@@ -16,6 +17,7 @@ use display::{
     display_status, display_suggestions,
 };
 use error::Result;
+use port::Port;
 use ports::get_listening_ports;
 use registry::{allocate_port, free_port, query_ports, set_port_range, suggest_port};
 
@@ -50,7 +52,7 @@ fn run() -> Result<()> {
     }
 }
 
-fn cmd_allocate(project: &str, name: &str, port: Option<u16>) -> Result<()> {
+fn cmd_allocate(project: &str, name: &str, port: Option<Port>) -> Result<()> {
     let mut registry = load_registry()?;
     let active_ports = get_listening_ports().unwrap_or_default();
 

@@ -2,6 +2,8 @@
 
 use clap::{Parser, Subcommand};
 
+use crate::port::Port;
+
 /// Port Manager - manage port allocations across projects.
 #[derive(Parser, Debug)]
 #[command(name = "pm")]
@@ -25,7 +27,7 @@ pub enum Command {
         name: String,
 
         /// Specific port number to allocate (optional - auto-suggest if omitted)
-        port: Option<u16>,
+        port: Option<Port>,
     },
 
     /// Free port(s) from a project.

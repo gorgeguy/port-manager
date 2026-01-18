@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{ConfigError, Result};
+use crate::port::Port;
 
 /// The main registry configuration, stored as TOML.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -36,7 +37,7 @@ pub struct Defaults {
 #[serde(transparent)]
 pub struct Project {
     /// Named ports (e.g., "web" -> 8080).
-    pub ports: BTreeMap<String, u16>,
+    pub ports: BTreeMap<String, Port>,
 }
 
 impl Default for Defaults {
@@ -46,7 +47,6 @@ impl Default for Defaults {
         }
     }
 }
-
 
 /// Returns the default port ranges for common port types.
 fn default_ranges() -> BTreeMap<String, [u16; 2]> {
@@ -142,7 +142,7 @@ impl Registry {
     }
 
     /// Returns all allocated ports across all projects.
-    pub fn all_allocated_ports(&self) -> Vec<u16> {
+    pub fn all_allocated_ports(&self) -> Vec<Port> {
         self.projects
             .values()
             .flat_map(|p| p.ports.values())
@@ -151,7 +151,7 @@ impl Registry {
     }
 
     /// Finds which project and name owns a given port.
-    pub fn find_port_owner(&self, port: u16) -> Option<(&str, &str)> {
+    pub fn find_port_owner(&self, port: Port) -> Option<(&str, &str)> {
         for (project_name, project) in &self.projects {
             for (port_name, &p) in &project.ports {
                 if p == port {
@@ -181,16 +181,26 @@ mod tests {
         let mut registry = Registry::default();
 
         let mut project1 = Project::default();
-        project1.ports.insert("web".to_string(), 8080);
-        project1.ports.insert("api".to_string(), 3000);
+        project1
+            .ports
+            .insert("web".to_string(), Port::new(8080).unwrap());
+        project1
+            .ports
+            .insert("api".to_string(), Port::new(3000).unwrap());
 
         let mut project2 = Project::default();
-        project2.ports.insert("web".to_string(), 8081);
+        project2
+            .ports
+            .insert("web".to_string(), Port::new(8081).unwrap());
 
         registry.projects.insert("p1".to_string(), project1);
         registry.projects.insert("p2".to_string(), project2);
 
-        let mut ports = registry.all_allocated_ports();
+        let mut ports: Vec<u16> = registry
+            .all_allocated_ports()
+            .into_iter()
+            .map(Port::as_u16)
+            .collect();
         ports.sort();
         assert_eq!(ports, vec![3000, 8080, 8081]);
     }
@@ -200,13 +210,15 @@ mod tests {
         let mut registry = Registry::default();
 
         let mut project = Project::default();
-        project.ports.insert("web".to_string(), 8080);
+        project
+            .ports
+            .insert("web".to_string(), Port::new(8080).unwrap());
         registry.projects.insert("webapp".to_string(), project);
 
         assert_eq!(
-            registry.find_port_owner(8080),
+            registry.find_port_owner(Port::new(8080).unwrap()),
             Some(("webapp", "web"))
         );
-        assert_eq!(registry.find_port_owner(9999), None);
+        assert_eq!(registry.find_port_owner(Port::new(9999).unwrap()), None);
     }
 }

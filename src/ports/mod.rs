@@ -7,12 +7,13 @@
 mod macos;
 
 use crate::error::Result;
+use crate::port::Port;
 
 /// Information about a listening port.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ListeningPort {
     /// The port number.
-    pub port: u16,
+    pub port: Port,
     /// The process ID that owns this port (if detectable).
     pub pid: Option<i32>,
     /// The process name (if detectable).
@@ -34,4 +35,3 @@ pub fn get_listening_ports() -> Result<Vec<ListeningPort>> {
         Err(crate::error::PortDetectionError::PlatformNotSupported.into())
     }
 }
-
