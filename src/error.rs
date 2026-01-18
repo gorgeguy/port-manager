@@ -51,6 +51,13 @@ pub enum ConfigError {
 
     #[error("Failed to serialize config: {0}")]
     SerializeFailed(#[from] toml::ser::Error),
+
+    #[error("Failed to acquire lock on {path}: {source}")]
+    LockFailed {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
 }
 
 /// Errors related to port registry operations.

@@ -12,12 +12,12 @@ mod registry;
 use clap::Parser;
 
 use cli::{Cli, Command};
-use persistence::{load_registry, registry_path, save_registry};
 use display::{
     build_allocated_port_list, display_allocated_ports, display_config, display_query,
     display_status, display_suggestions,
 };
 use error::Result;
+use persistence::{load_registry, registry_path, with_registry_mut};
 use port::Port;
 use ports::get_listening_ports;
 use registry::{allocate_port, free_port, query_ports, set_port_range, suggest_port};
@@ -54,21 +54,17 @@ fn run() -> Result<()> {
 }
 
 fn cmd_allocate(project: &str, name: &str, port: Option<Port>) -> Result<()> {
-    let mut registry = load_registry()?;
     let active_ports = get_listening_ports().unwrap_or_default();
 
-    let allocated = allocate_port(&mut registry, project, name, port, &active_ports)?;
-    save_registry(&registry)?;
+    let allocated =
+        with_registry_mut(|registry| allocate_port(registry, project, name, port, &active_ports))?;
 
     println!("Allocated {project}.{name} = {allocated}");
     Ok(())
 }
 
 fn cmd_free(project: &str, name: Option<&str>) -> Result<()> {
-    let mut registry = load_registry()?;
-
-    let freed = free_port(&mut registry, project, name)?;
-    save_registry(&registry)?;
+    let freed = with_registry_mut(|registry| free_port(registry, project, name))?;
 
     for (port_name, port) in freed {
         println!("Freed {project}.{port_name} (was {port})");
@@ -130,16 +126,16 @@ fn cmd_suggest(port_type: &str, count: usize) -> Result<()> {
 }
 
 fn cmd_config(show_path: bool, set_range: Option<String>) -> Result<()> {
-    let mut registry = load_registry()?;
     let path = registry_path()?;
 
     if let Some(range_spec) = set_range {
-        let (type_name, start, end) = set_port_range(&mut registry, &range_spec)?;
-        save_registry(&registry)?;
+        let (type_name, start, end) =
+            with_registry_mut(|registry| set_port_range(registry, &range_spec))?;
         println!("Set {type_name} range to {start}-{end}");
         return Ok(());
     }
 
+    let registry = load_registry()?;
     if show_path {
         display_config(&registry, Some(&path));
     } else {

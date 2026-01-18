@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use crate::model::Registry;
 use crate::error::{RegistryError, Result};
+use crate::model::Registry;
 use crate::port::Port;
 use crate::ports::ListeningPort;
 
