@@ -55,7 +55,7 @@ fn run() -> Result<()> {
             json,
         } => cmd_query(&project, name.as_deref(), json),
 
-        Command::Status { json } => cmd_status(json),
+        Command::Status { json, full } => cmd_status(json, full),
 
         Command::Suggest {
             r#type,
@@ -99,10 +99,10 @@ fn cmd_list(active_only: bool, unassigned_only: bool, json: bool) -> Result<()> 
             .cloned()
             .collect();
         if json {
-            let ports = build_status_port_list(&unassigned, &registry);
+            let ports = build_status_port_list(&unassigned, &registry, false);
             display_status_json(&ports);
         } else {
-            display_status(&unassigned, &registry);
+            display_status(&unassigned, &registry, false);
         }
     } else {
         let ports = build_allocated_port_list(&registry, &listening, active_only);
@@ -137,15 +137,15 @@ fn cmd_query(project: &str, name: Option<&str>, json: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_status(json: bool) -> Result<()> {
+fn cmd_status(json: bool, full: bool) -> Result<()> {
     let registry = load_registry()?;
     let listening = get_listening_ports()?;
 
     if json {
-        let ports = build_status_port_list(&listening, &registry);
+        let ports = build_status_port_list(&listening, &registry, full);
         display_status_json(&ports);
     } else {
-        display_status(&listening, &registry);
+        display_status(&listening, &registry, full);
     }
     Ok(())
 }

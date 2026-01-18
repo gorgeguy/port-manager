@@ -82,6 +82,10 @@ pub enum Command {
         /// Output as JSON for scripting
         #[arg(long)]
         json: bool,
+
+        /// Show full process information including working directory
+        #[arg(long)]
+        full: bool,
     },
 
     /// Suggest available ports.

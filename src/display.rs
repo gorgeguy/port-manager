@@ -58,6 +58,8 @@ pub struct StatusPortInfo {
     pub name: Option<String>,
     pub pid: Option<i32>,
     pub process: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
 }
 
 /// Displays the allocated ports table.
@@ -100,14 +102,25 @@ pub fn display_allocated_ports(ports: &[AllocatedPortInfo]) {
 }
 
 /// Displays the status table (all listening ports).
-pub fn display_status(listening: &[ListeningPort], registry: &Registry) {
+pub fn display_status(listening: &[ListeningPort], registry: &Registry, full: bool) {
     if listening.is_empty() {
         println!("No listening ports detected.");
         return;
     }
 
     let mut table = create_table();
-    table.set_header(vec!["PORT", "PROJECT", "NAME", "PID", "PROCESS"]);
+    if full {
+        table.set_header(vec![
+            "PORT",
+            "PROJECT",
+            "NAME",
+            "PID",
+            "PROCESS",
+            "DIRECTORY",
+        ]);
+    } else {
+        table.set_header(vec!["PORT", "PROJECT", "NAME", "PID", "PROCESS"]);
+    }
 
     for lp in listening {
         let (project, name) = registry
@@ -122,13 +135,30 @@ pub fn display_status(listening: &[ListeningPort], registry: &Registry) {
 
         let process_str = lp.process_name.clone().unwrap_or_else(|| "---".to_string());
 
-        table.add_row(vec![
-            Cell::new(lp.port),
-            Cell::new(&project),
-            Cell::new(&name),
-            Cell::new(&pid_str),
-            Cell::new(&process_str),
-        ]);
+        if full {
+            let cwd_str = lp
+                .process_cwd
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "---".to_string());
+
+            table.add_row(vec![
+                Cell::new(lp.port),
+                Cell::new(&project),
+                Cell::new(&name),
+                Cell::new(&pid_str),
+                Cell::new(&process_str),
+                Cell::new(&cwd_str),
+            ]);
+        } else {
+            table.add_row(vec![
+                Cell::new(lp.port),
+                Cell::new(&project),
+                Cell::new(&name),
+                Cell::new(&pid_str),
+                Cell::new(&process_str),
+            ]);
+        }
     }
 
     println!("{table}");
@@ -227,6 +257,7 @@ pub fn build_allocated_port_list(
 pub fn build_status_port_list(
     listening: &[ListeningPort],
     registry: &Registry,
+    full: bool,
 ) -> Vec<StatusPortInfo> {
     listening
         .iter()
@@ -236,12 +267,19 @@ pub fn build_status_port_list(
                 .map(|(p, n)| (Some(p.to_string()), Some(n.to_string())))
                 .unwrap_or((None, None));
 
+            let cwd = if full {
+                lp.process_cwd.as_ref().map(|p| p.display().to_string())
+            } else {
+                None
+            };
+
             StatusPortInfo {
                 port: lp.port,
                 project,
                 name,
                 pid: lp.pid,
                 process: lp.process_name.clone(),
+                cwd,
             }
         })
         .collect()

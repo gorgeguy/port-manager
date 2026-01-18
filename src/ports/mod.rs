@@ -6,6 +6,8 @@
 #[cfg(target_os = "macos")]
 mod macos;
 
+use std::path::PathBuf;
+
 use serde::Serialize;
 
 use crate::error::Result;
@@ -20,6 +22,8 @@ pub struct ListeningPort {
     pub pid: Option<i32>,
     /// The process name (if detectable).
     pub process_name: Option<String>,
+    /// The process's current working directory (if detectable).
+    pub process_cwd: Option<PathBuf>,
 }
 
 /// Returns all TCP ports currently listening on the system.

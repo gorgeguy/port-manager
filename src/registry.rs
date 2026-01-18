@@ -262,11 +262,13 @@ mod tests {
                 port: port(8000),
                 pid: Some(123),
                 process_name: Some("python".to_string()),
+                process_cwd: None,
             },
             ListeningPort {
                 port: port(8001),
                 pid: Some(124),
                 process_name: Some("node".to_string()),
+                process_cwd: None,
             },
         ];
 
@@ -295,6 +297,7 @@ mod tests {
             port: port(8080),
             pid: Some(999),
             process_name: Some("python".to_string()),
+            process_cwd: None,
         }];
 
         let result = allocate_port(&mut registry, "webapp", "web", Some(port(8080)), &active);

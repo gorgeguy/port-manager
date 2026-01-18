@@ -4,6 +4,7 @@
 //! and libproc to map ports to processes.
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::ptr;
 
 use libc::{c_int, c_void, size_t};
@@ -24,6 +25,24 @@ const TCPCTL_PCBLIST: c_int = 11;
 
 // TCP states
 const TCPS_LISTEN: c_int = 1;
+
+// proc_pidinfo constants from sys/proc_info.h
+const PROC_PIDVNODEPATHINFO: c_int = 9;
+const MAXPATHLEN: usize = 1024;
+
+/// vnode_info_path structure from sys/proc_info.h
+#[repr(C)]
+struct VnodeInfoPath {
+    vip_vi: [u8; 152], // vnode_info (we don't need the details)
+    vip_path: [u8; MAXPATHLEN],
+}
+
+/// proc_vnodepathinfo structure from sys/proc_info.h
+#[repr(C)]
+struct ProcVnodePathInfo {
+    pvi_cdir: VnodeInfoPath, // current working directory
+    pvi_rdir: VnodeInfoPath, // root directory
+}
 
 /// xinpgen header structure from netinet/tcp_var.h
 #[repr(C)]
@@ -47,6 +66,46 @@ extern "C" {
     ) -> c_int;
 }
 
+// External proc_pidinfo function
+extern "C" {
+    fn proc_pidinfo(
+        pid: c_int,
+        flavor: c_int,
+        arg: u64,
+        buffer: *mut c_void,
+        buffersize: c_int,
+    ) -> c_int;
+}
+
+/// Gets the current working directory for a process.
+pub fn get_process_cwd(pid: i32) -> Option<PathBuf> {
+    let mut info: ProcVnodePathInfo = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of::<ProcVnodePathInfo>() as c_int;
+
+    let ret = unsafe {
+        proc_pidinfo(
+            pid,
+            PROC_PIDVNODEPATHINFO,
+            0,
+            &mut info as *mut _ as *mut c_void,
+            size,
+        )
+    };
+
+    if ret <= 0 {
+        return None;
+    }
+
+    // Extract null-terminated path string
+    let path_bytes = &info.pvi_cdir.vip_path;
+    let len = path_bytes
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(MAXPATHLEN);
+    let path_str = std::str::from_utf8(&path_bytes[..len]).ok()?;
+    Some(PathBuf::from(path_str))
+}
+
 /// Gets all listening TCP ports on the system.
 pub fn get_listening_ports() -> Result<Vec<ListeningPort>> {
     // Use sysctl to get all listening ports (reliable, no permission issues)
@@ -61,11 +120,15 @@ pub fn get_listening_ports() -> Result<Vec<ListeningPort>> {
         .filter_map(|port_num| {
             // Port::new only fails for port 0, which we filter out in get_listening_ports_sysctl
             let port = Port::new(port_num).ok()?;
-            let (pid, proc_name) = port_to_pid.get(&port_num).cloned().unwrap_or((None, None));
+            let (pid, proc_name, proc_cwd) = port_to_pid
+                .get(&port_num)
+                .cloned()
+                .unwrap_or((None, None, None));
             Some(ListeningPort {
                 port,
                 pid,
                 process_name: proc_name,
+                process_cwd: proc_cwd,
             })
         })
         .collect();
@@ -179,9 +242,12 @@ fn get_listening_ports_sysctl() -> Result<Vec<u16>> {
     Ok(listening_ports.into_iter().collect())
 }
 
-/// Builds a map from port number to (PID, process name) using libproc.
+/// Builds a map from port number to (PID, process name, CWD) using libproc.
 /// Iterates all processes and their file descriptors to find socket owners.
-fn build_port_to_pid_map(ports: &[u16]) -> HashMap<u16, (Option<i32>, Option<String>)> {
+#[allow(clippy::type_complexity)]
+fn build_port_to_pid_map(
+    ports: &[u16],
+) -> HashMap<u16, (Option<i32>, Option<String>, Option<PathBuf>)> {
     let mut map = HashMap::new();
 
     if ports.is_empty() {
@@ -233,7 +299,8 @@ fn build_port_to_pid_map(ports: &[u16]) -> HashMap<u16, (Option<i32>, Option<Str
             // Check if this is a port we're looking for
             if local_port > 0 && port_set.contains(&local_port) && !map.contains_key(&local_port) {
                 let proc_name = name(pid_i32).ok();
-                map.insert(local_port, (Some(pid_i32), proc_name));
+                let proc_cwd = get_process_cwd(pid_i32);
+                map.insert(local_port, (Some(pid_i32), proc_name, proc_cwd));
 
                 // Early exit if we've found all ports
                 if map.len() == port_set.len() {
