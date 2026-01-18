@@ -3,12 +3,29 @@
 use std::collections::HashMap;
 
 use comfy_table::modifiers::UTF8_ROUND_CORNERS;
-use comfy_table::presets::UTF8_FULL;
-use comfy_table::{Cell, Color, ContentArrangement, Table};
+use comfy_table::presets::UTF8_FULL_CONDENSED;
+use comfy_table::{Cell, Color, ContentArrangement, Table, TableComponent};
 
 use crate::model::Registry;
 use crate::port::Port;
 use crate::ports::ListeningPort;
+
+/// Creates a table with clean styling: solid borders, no row separators.
+fn create_table() -> Table {
+    let mut table = Table::new();
+    table
+        .load_preset(UTF8_FULL_CONDENSED)
+        .apply_modifier(UTF8_ROUND_CORNERS)
+        .set_content_arrangement(ContentArrangement::Dynamic);
+    // Use solid vertical bars instead of dotted
+    table.set_style(TableComponent::VerticalLines, '│');
+    // Use single-line header separator instead of double
+    table.set_style(TableComponent::MiddleHeaderIntersections, '┼');
+    table.set_style(TableComponent::HeaderLines, '─');
+    table.set_style(TableComponent::LeftHeaderIntersection, '├');
+    table.set_style(TableComponent::RightHeaderIntersection, '┤');
+    table
+}
 
 /// Status of an allocated port.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,12 +54,8 @@ pub fn display_allocated_ports(ports: &[AllocatedPortInfo]) {
         return;
     }
 
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .apply_modifier(UTF8_ROUND_CORNERS)
-        .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec!["PROJECT", "NAME", "PORT", "STATUS", "PID", "PROCESS"]);
+    let mut table = create_table();
+    table.set_header(vec!["PROJECT", "NAME", "PORT", "STATUS", "PID", "PROCESS"]);
 
     for port in ports {
         let status_cell = match port.status {
@@ -80,12 +93,8 @@ pub fn display_status(listening: &[ListeningPort], registry: &Registry) {
         return;
     }
 
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .apply_modifier(UTF8_ROUND_CORNERS)
-        .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec!["PORT", "PROJECT", "NAME", "PID", "PROCESS"]);
+    let mut table = create_table();
+    table.set_header(vec!["PORT", "PROJECT", "NAME", "PID", "PROCESS"]);
 
     for lp in listening {
         let (project, name) = registry
@@ -148,12 +157,8 @@ pub fn display_config(registry: &Registry, path: Option<&std::path::Path>) {
     }
 
     println!("Default port ranges:");
-    let mut table = Table::new();
-    table
-        .load_preset(UTF8_FULL)
-        .apply_modifier(UTF8_ROUND_CORNERS)
-        .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec!["TYPE", "RANGE"]);
+    let mut table = create_table();
+    table.set_header(vec!["TYPE", "RANGE"]);
 
     for (name, range) in &registry.defaults.ranges {
         table.add_row(vec![
