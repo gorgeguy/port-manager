@@ -1,5 +1,6 @@
 # Port Manager (`pm`)
 
+[![Crates.io](https://img.shields.io/crates/v/port-manager.svg)](https://crates.io/crates/port-manager)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/gorgeguy/port-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/gorgeguy/port-manager/actions/workflows/ci.yml)
 
@@ -18,18 +19,18 @@ A CLI tool for managing port allocations across projects with named ports, auto-
 
 ## Installation
 
-### From source (recommended for now)
+### From crates.io
+
+```bash
+cargo install port-manager
+```
+
+### From source
 
 ```bash
 git clone https://github.com/gorgeguy/port-manager.git
 cd port-manager
 cargo install --path .
-```
-
-### From crates.io (coming soon)
-
-```bash
-cargo install port-manager
 ```
 
 ## Usage
