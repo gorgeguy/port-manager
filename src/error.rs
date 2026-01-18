@@ -66,7 +66,7 @@ pub enum RegistryError {
     #[error("Project '{0}' not found. Run 'pm list' to see allocated projects")]
     ProjectNotFound(String),
 
-    #[error("Port name '{name}' not found in project '{project}'. Run 'pm get {project}' to see available ports")]
+    #[error("Port name '{name}' not found in project '{project}'. Run 'pm query {project}' to see available ports")]
     PortNameNotFound { project: String, name: String },
 
     #[error("Port {port} is already allocated to {project}.{name}. Run 'pm list' to see all allocations")]
