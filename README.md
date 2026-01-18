@@ -1,11 +1,35 @@
 # Port Manager (`pm`)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/gorgeguy/port-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/gorgeguy/port-manager/actions/workflows/ci.yml)
+
 A CLI tool for managing port allocations across projects with named ports, auto-suggestion, and active port detection.
+
+## Why Port Manager?
+
+**The Problem**: When working on multiple projects or microservices, port conflicts are a constant annoyance. You start your API server and discover port 3000 is already taken. Was it your other project? A forgotten background process? You resort to random port numbers, then forget which port each service uses.
+
+**The Solution**: Port Manager gives you a persistent registry of named port allocations. Assign `webapp.api = 3000` once, and your team always knows where to find it. The tool auto-suggests ports from configurable ranges, detects what's actually running, and integrates seamlessly into shell scripts.
+
+## Prerequisites
+
+- **Rust toolchain** (1.70+): Install via [rustup](https://rustup.rs/)
+- **macOS**: Currently macOS only (uses native `libproc` for port detection)
 
 ## Installation
 
+### From source (recommended for now)
+
 ```bash
+git clone https://github.com/gorgeguy/port-manager.git
+cd port-manager
 cargo install --path .
+```
+
+### From crates.io (coming soon)
+
+```bash
+cargo install port-manager
 ```
 
 ## Usage
@@ -103,6 +127,24 @@ pm config --path
 pm config --set cache=6000-6099
 ```
 
+## JSON Output
+
+All commands support `--json` for machine-readable output, useful for scripting and integrations:
+
+```bash
+# List allocations as JSON
+pm list --json
+
+# Query with JSON output
+pm query webapp --json
+
+# Config as JSON
+pm config --json
+
+# Suggestions as JSON
+pm suggest --type web --json
+```
+
 ## Port Ranges
 
 Default ranges by type:
@@ -135,6 +177,8 @@ api = 3000
 api = 3001
 ```
 
+Override the config location with `PM_CONFIG_DIR` environment variable.
+
 ## Platform Support
 
 Currently macOS only. Uses native syscalls (`libproc`) for port detection.
@@ -143,6 +187,10 @@ Currently macOS only. Uses native syscalls (`libproc`) for port detection.
 
 - **[docs/ARCHITECTURE_REVIEW.md](docs/ARCHITECTURE_REVIEW.md)** - Comprehensive architecture analysis with module responsibilities, data flow diagrams, and historical refactoring roadmap
 - **[docs/CODE_REVIEW_PROMPT.md](docs/CODE_REVIEW_PROMPT.md)** - Template prompt for generating architecture reviews
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
