@@ -139,6 +139,11 @@ api = 3001
 
 Currently macOS only. Uses native syscalls (`libproc`) for port detection.
 
+## Documentation
+
+- **[docs/ARCHITECTURE_REVIEW.md](docs/ARCHITECTURE_REVIEW.md)** - Comprehensive architecture analysis with module responsibilities, data flow diagrams, and historical refactoring roadmap
+- **[docs/CODE_REVIEW_PROMPT.md](docs/CODE_REVIEW_PROMPT.md)** - Template prompt for generating architecture reviews
+
 ## License
 
 MIT
