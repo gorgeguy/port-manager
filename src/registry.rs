@@ -145,6 +145,46 @@ pub fn suggest_port(
     Ok(suggestions)
 }
 
+/// Parses and sets a port range from a string specification.
+///
+/// The format is "type=start-end" (e.g., "web=8000-8999").
+/// Returns the parsed type name, start, and end ports on success.
+pub fn set_port_range(
+    registry: &mut Registry,
+    range_spec: &str,
+) -> Result<(String, u16, u16)> {
+    // Parse "type=start-end"
+    let parts: Vec<&str> = range_spec.splitn(2, '=').collect();
+    if parts.len() != 2 {
+        return Err(RegistryError::InvalidRangeFormat.into());
+    }
+
+    let type_name = parts[0];
+    let range_parts: Vec<&str> = parts[1].splitn(2, '-').collect();
+    if range_parts.len() != 2 {
+        return Err(RegistryError::InvalidRangeFormat.into());
+    }
+
+    let start: u16 = range_parts[0]
+        .parse()
+        .map_err(|_| RegistryError::InvalidPortNumber(range_parts[0].to_string()))?;
+
+    let end: u16 = range_parts[1]
+        .parse()
+        .map_err(|_| RegistryError::InvalidPortNumber(range_parts[1].to_string()))?;
+
+    if start >= end {
+        return Err(RegistryError::InvalidPortRange { start, end }.into());
+    }
+
+    registry
+        .defaults
+        .ranges
+        .insert(type_name.to_string(), [start, end]);
+
+    Ok((type_name.to_string(), start, end))
+}
+
 /// Queries ports for a project.
 ///
 /// If `name` is `None`, returns all ports for the project.
@@ -314,5 +354,64 @@ mod tests {
 
         let suggestions = suggest_port(&registry, "web", 3, &active).unwrap();
         assert_eq!(suggestions, vec![8002, 8003, 8004]);
+    }
+
+    #[test]
+    fn test_set_port_range() {
+        let mut registry = empty_registry();
+
+        let (type_name, start, end) = set_port_range(&mut registry, "custom=5000-5999").unwrap();
+        assert_eq!(type_name, "custom");
+        assert_eq!(start, 5000);
+        assert_eq!(end, 5999);
+        assert_eq!(registry.get_range("custom"), [5000, 5999]);
+    }
+
+    #[test]
+    fn test_set_port_range_invalid_format() {
+        let mut registry = empty_registry();
+
+        // Missing equals sign
+        let result = set_port_range(&mut registry, "custom5000-5999");
+        assert!(matches!(
+            result,
+            Err(crate::error::Error::Registry(RegistryError::InvalidRangeFormat))
+        ));
+
+        // Missing dash in range
+        let result = set_port_range(&mut registry, "custom=50005999");
+        assert!(matches!(
+            result,
+            Err(crate::error::Error::Registry(RegistryError::InvalidRangeFormat))
+        ));
+    }
+
+    #[test]
+    fn test_set_port_range_invalid_port() {
+        let mut registry = empty_registry();
+
+        let result = set_port_range(&mut registry, "custom=abc-5999");
+        assert!(matches!(
+            result,
+            Err(crate::error::Error::Registry(RegistryError::InvalidPortNumber(_)))
+        ));
+    }
+
+    #[test]
+    fn test_set_port_range_start_not_less_than_end() {
+        let mut registry = empty_registry();
+
+        let result = set_port_range(&mut registry, "custom=5999-5000");
+        assert!(matches!(
+            result,
+            Err(crate::error::Error::Registry(RegistryError::InvalidPortRange { start: 5999, end: 5000 }))
+        ));
+
+        // Equal ports
+        let result = set_port_range(&mut registry, "custom=5000-5000");
+        assert!(matches!(
+            result,
+            Err(crate::error::Error::Registry(RegistryError::InvalidPortRange { start: 5000, end: 5000 }))
+        ));
     }
 }

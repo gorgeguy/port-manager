@@ -17,7 +17,7 @@ use display::{
 };
 use error::Result;
 use ports::get_listening_ports;
-use registry::{allocate_port, free_port, query_ports, suggest_port};
+use registry::{allocate_port, free_port, query_ports, set_port_range, suggest_port};
 
 fn main() {
     if let Err(e) = run() {
@@ -131,41 +131,8 @@ fn cmd_config(show_path: bool, set_range: Option<String>) -> Result<()> {
     let path = registry_path()?;
 
     if let Some(range_spec) = set_range {
-        // Parse "type=start-end"
-        let parts: Vec<&str> = range_spec.splitn(2, '=').collect();
-        if parts.len() != 2 {
-            eprintln!("Invalid format. Use: type=start-end (e.g., web=8000-8999)");
-            std::process::exit(1);
-        }
-
-        let type_name = parts[0];
-        let range_parts: Vec<&str> = parts[1].splitn(2, '-').collect();
-        if range_parts.len() != 2 {
-            eprintln!("Invalid range format. Use: start-end (e.g., 8000-8999)");
-            std::process::exit(1);
-        }
-
-        let start: u16 = range_parts[0].parse().unwrap_or_else(|_| {
-            eprintln!("Invalid start port: {}", range_parts[0]);
-            std::process::exit(1);
-        });
-
-        let end: u16 = range_parts[1].parse().unwrap_or_else(|_| {
-            eprintln!("Invalid end port: {}", range_parts[1]);
-            std::process::exit(1);
-        });
-
-        if start >= end {
-            eprintln!("Start port must be less than end port");
-            std::process::exit(1);
-        }
-
-        registry
-            .defaults
-            .ranges
-            .insert(type_name.to_string(), [start, end]);
+        let (type_name, start, end) = set_port_range(&mut registry, &range_spec)?;
         save_registry(&registry)?;
-
         println!("Set {type_name} range to {start}-{end}");
         return Ok(());
     }

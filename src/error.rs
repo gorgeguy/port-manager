@@ -74,6 +74,15 @@ pub enum RegistryError {
         pid: i32,
         process_name: String,
     },
+
+    #[error("Invalid range format: expected 'type=start-end' (e.g., web=8000-8999)")]
+    InvalidRangeFormat,
+
+    #[error("Invalid port number: '{0}'")]
+    InvalidPortNumber(String),
+
+    #[error("Invalid range: start port ({start}) must be less than end port ({end})")]
+    InvalidPortRange { start: u16, end: u16 },
 }
 
 /// Errors related to port detection via system calls.
