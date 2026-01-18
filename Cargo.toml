@@ -5,6 +5,10 @@ edition = "2021"
 description = "CLI tool for managing port allocations across projects"
 authors = ["Jon"]
 license = "MIT"
+repository = "https://github.com/gorgeguy/port-manager"
+homepage = "https://github.com/gorgeguy/port-manager"
+keywords = ["port", "cli", "allocation", "development", "networking"]
+categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
 name = "pm"
