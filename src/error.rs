@@ -67,6 +67,13 @@ pub enum RegistryError {
 
     #[error("No available ports in range {start}-{end}")]
     NoAvailablePorts { start: u16, end: u16 },
+
+    #[error("Port {port} is in use by {process_name} (PID {pid})")]
+    PortInUse {
+        port: u16,
+        pid: i32,
+        process_name: String,
+    },
 }
 
 /// Errors related to port detection via system calls.

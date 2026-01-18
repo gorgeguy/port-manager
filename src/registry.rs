@@ -33,6 +33,15 @@ pub fn allocate_port(
             if registry.find_port_owner(p).is_some() {
                 return Err(RegistryError::PortAlreadyAllocated(p).into());
             }
+            // Verify port is not currently in use
+            if let Some(active) = active_ports.iter().find(|ap| ap.port == p) {
+                return Err(RegistryError::PortInUse {
+                    port: p,
+                    pid: active.pid.unwrap_or(0),
+                    process_name: active.process_name.clone().unwrap_or_else(|| "unknown".to_string()),
+                }
+                .into());
+            }
             p
         }
         None => {
@@ -220,6 +229,27 @@ mod tests {
         assert!(matches!(
             result,
             Err(crate::error::Error::Registry(RegistryError::PortAlreadyAllocated(8080)))
+        ));
+    }
+
+    #[test]
+    fn test_allocate_explicit_port_in_use() {
+        let mut registry = empty_registry();
+        let active = vec![ListeningPort {
+            port: 8080,
+            pid: Some(999),
+            process_name: Some("python".to_string()),
+        }];
+
+        let result = allocate_port(&mut registry, "webapp", "web", Some(8080), &active);
+
+        assert!(matches!(
+            result,
+            Err(crate::error::Error::Registry(RegistryError::PortInUse {
+                port: 8080,
+                pid: 999,
+                process_name: _,
+            }))
         ));
     }
 
