@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{ConfigError, Result};
 
 /// The main registry configuration, stored as TOML.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Registry {
     /// Default port ranges for different port types.
     #[serde(default)]
@@ -46,14 +46,6 @@ impl Default for Defaults {
     }
 }
 
-impl Default for Registry {
-    fn default() -> Self {
-        Self {
-            defaults: Defaults::default(),
-            projects: BTreeMap::new(),
-        }
-    }
-}
 
 /// Returns the default port ranges for common port types.
 fn default_ranges() -> BTreeMap<String, [u16; 2]> {

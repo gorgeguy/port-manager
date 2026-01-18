@@ -67,30 +67,16 @@ pub enum RegistryError {
 
     #[error("No available ports in range {start}-{end}")]
     NoAvailablePorts { start: u16, end: u16 },
-
-    #[error("Invalid port number: {0}")]
-    InvalidPort(u16),
-
-    #[error("Invalid port range: {start}-{end}")]
-    InvalidRange { start: u16, end: u16 },
 }
 
 /// Errors related to port detection via system calls.
 #[derive(Error, Debug)]
 pub enum PortDetectionError {
-    #[error("sysctl failed: {0}")]
-    SysctlFailed(String),
-
     #[error("Failed to enumerate processes: {0}")]
     ProcessEnumFailed(String),
 
-    #[error("Failed to get process info for PID {pid}: {error}")]
-    ProcessInfoFailed { pid: i32, error: String },
-
-    #[error("Permission denied - try running with sudo for full process info")]
-    PermissionDenied,
-
     #[error("Platform not supported")]
+    #[allow(dead_code)] // Used in #[cfg(not(target_os = "macos"))] branch
     PlatformNotSupported,
 }
 

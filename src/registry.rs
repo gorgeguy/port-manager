@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::config::{Project, Registry};
+use crate::config::Registry;
 use crate::error::{RegistryError, Result};
 use crate::ports::ListeningPort;
 
@@ -54,7 +54,7 @@ pub fn allocate_port(
     let proj = registry
         .projects
         .entry(project.to_string())
-        .or_insert_with(Project::default);
+        .or_default();
 
     proj.ports.insert(name.to_string(), allocated_port);
 

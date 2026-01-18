@@ -35,8 +35,3 @@ pub fn get_listening_ports() -> Result<Vec<ListeningPort>> {
     }
 }
 
-/// Checks if a specific port is currently in use.
-pub fn is_port_in_use(port: u16) -> Result<bool> {
-    let ports = get_listening_ports()?;
-    Ok(ports.iter().any(|p| p.port == port))
-}

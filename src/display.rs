@@ -41,7 +41,7 @@ pub fn display_allocated_ports(ports: &[AllocatedPortInfo]) {
         .load_preset(UTF8_FULL)
         .apply_modifier(UTF8_ROUND_CORNERS)
         .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec!["PROJECT", "NAME", "PORT", "STATUS"]);
+        .set_header(vec!["PROJECT", "NAME", "PORT", "STATUS", "PID", "PROCESS"]);
 
     for port in ports {
         let status_cell = match port.status {
@@ -49,11 +49,23 @@ pub fn display_allocated_ports(ports: &[AllocatedPortInfo]) {
             PortStatus::Idle => Cell::new("IDLE").fg(Color::DarkGrey),
         };
 
+        let pid_str = port
+            .pid
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "---".to_string());
+
+        let process_str = port
+            .process_name
+            .clone()
+            .unwrap_or_else(|| "---".to_string());
+
         table.add_row(vec![
             Cell::new(&port.project),
             Cell::new(&port.name),
             Cell::new(port.port),
             status_cell,
+            Cell::new(&pid_str),
+            Cell::new(&process_str),
         ]);
     }
 
