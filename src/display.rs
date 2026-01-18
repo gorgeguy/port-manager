@@ -6,7 +6,7 @@ use comfy_table::modifiers::UTF8_ROUND_CORNERS;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{Cell, Color, ContentArrangement, Table};
 
-use crate::config::Registry;
+use crate::model::Registry;
 use crate::port::Port;
 use crate::ports::ListeningPort;
 

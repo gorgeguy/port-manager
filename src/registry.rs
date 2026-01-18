@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use crate::config::Registry;
+use crate::model::Registry;
 use crate::error::{RegistryError, Result};
 use crate::port::Port;
 use crate::ports::ListeningPort;

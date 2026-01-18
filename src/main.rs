@@ -1,9 +1,10 @@
 //! Port Manager CLI - manage port allocations across projects.
 
 mod cli;
-mod config;
 mod display;
 mod error;
+mod model;
+mod persistence;
 mod port;
 mod ports;
 mod registry;
@@ -11,7 +12,7 @@ mod registry;
 use clap::Parser;
 
 use cli::{Cli, Command};
-use config::{load_registry, registry_path, save_registry};
+use persistence::{load_registry, registry_path, save_registry};
 use display::{
     build_allocated_port_list, display_allocated_ports, display_config, display_query,
     display_status, display_suggestions,
