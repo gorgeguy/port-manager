@@ -258,3 +258,68 @@ pub fn display_status_json(ports: &[StatusPortInfo]) {
     let json = serde_json::to_string_pretty(ports).expect("Failed to serialize to JSON");
     println!("{json}");
 }
+
+/// Configuration info for JSON output.
+#[derive(Debug, Serialize)]
+pub struct ConfigInfo {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub config_file: Option<String>,
+    pub ranges: Vec<RangeInfo>,
+}
+
+/// Port range info for JSON output.
+#[derive(Debug, Serialize)]
+pub struct RangeInfo {
+    pub name: String,
+    pub start: u16,
+    pub end: u16,
+}
+
+/// Displays configuration as JSON.
+pub fn display_config_json(registry: &Registry, path: Option<&std::path::Path>) {
+    let ranges: Vec<RangeInfo> = registry
+        .defaults
+        .ranges
+        .iter()
+        .map(|(name, range)| RangeInfo {
+            name: name.clone(),
+            start: range[0],
+            end: range[1],
+        })
+        .collect();
+
+    let config = ConfigInfo {
+        config_file: path.map(|p| p.display().to_string()),
+        ranges,
+    };
+
+    let json = serde_json::to_string_pretty(&config).expect("Failed to serialize to JSON");
+    println!("{json}");
+}
+
+/// Query result for JSON output.
+#[derive(Debug, Serialize)]
+pub struct QueryResult {
+    pub name: String,
+    pub port: Port,
+}
+
+/// Displays query results as JSON.
+pub fn display_query_json(ports: &[(String, Port)]) {
+    let results: Vec<QueryResult> = ports
+        .iter()
+        .map(|(name, port)| QueryResult {
+            name: name.clone(),
+            port: *port,
+        })
+        .collect();
+
+    let json = serde_json::to_string_pretty(&results).expect("Failed to serialize to JSON");
+    println!("{json}");
+}
+
+/// Displays suggested ports as JSON.
+pub fn display_suggestions_json(ports: &[Port]) {
+    let json = serde_json::to_string_pretty(ports).expect("Failed to serialize to JSON");
+    println!("{json}");
+}

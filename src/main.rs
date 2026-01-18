@@ -14,8 +14,9 @@ use clap::Parser;
 use cli::{Cli, Command};
 use display::{
     build_allocated_port_list, build_status_port_list, display_allocated_ports,
-    display_allocated_ports_json, display_config, display_query, display_status,
-    display_status_json, display_suggestions,
+    display_allocated_ports_json, display_config, display_config_json, display_query,
+    display_query_json, display_status, display_status_json, display_suggestions,
+    display_suggestions_json,
 };
 use error::Result;
 use persistence::{load_registry, registry_path, with_registry_mut};
@@ -48,13 +49,21 @@ fn run() -> Result<()> {
             json,
         } => cmd_list(active, unassigned, json),
 
-        Command::Query { project, name } => cmd_query(&project, name.as_deref()),
+        Command::Query {
+            project,
+            name,
+            json,
+        } => cmd_query(&project, name.as_deref(), json),
 
         Command::Status { json } => cmd_status(json),
 
-        Command::Suggest { r#type, count } => cmd_suggest(&r#type, count),
+        Command::Suggest {
+            r#type,
+            count,
+            json,
+        } => cmd_suggest(&r#type, count, json),
 
-        Command::Config { path, set } => cmd_config(path, set),
+        Command::Config { path, set, json } => cmd_config(path, set, json),
     }
 }
 
@@ -107,17 +116,24 @@ fn cmd_list(active_only: bool, unassigned_only: bool, json: bool) -> Result<()> 
     Ok(())
 }
 
-fn cmd_query(project: &str, name: Option<&str>) -> Result<()> {
+fn cmd_query(project: &str, name: Option<&str>, json: bool) -> Result<()> {
     let registry = load_registry()?;
 
     let ports = query_ports(&registry, project, name)?;
 
     if ports.is_empty() {
+        if json {
+            println!("[]");
+        }
         // No output for scripting - exit success but empty
         return Ok(());
     }
 
-    display_query(&ports, name.is_some());
+    if json {
+        display_query_json(&ports);
+    } else {
+        display_query(&ports, name.is_some());
+    }
     Ok(())
 }
 
@@ -134,17 +150,22 @@ fn cmd_status(json: bool) -> Result<()> {
     Ok(())
 }
 
-fn cmd_suggest(port_type: &str, count: usize) -> Result<()> {
+fn cmd_suggest(port_type: &str, count: usize, json: bool) -> Result<()> {
     let registry = load_registry()?;
     let active_ports = get_listening_ports().unwrap_or_default();
 
     let suggestions = suggest_port(&registry, port_type, count, &active_ports)?;
-    display_suggestions(&suggestions, port_type);
+
+    if json {
+        display_suggestions_json(&suggestions);
+    } else {
+        display_suggestions(&suggestions, port_type);
+    }
 
     Ok(())
 }
 
-fn cmd_config(show_path: bool, set_range: Option<String>) -> Result<()> {
+fn cmd_config(show_path: bool, set_range: Option<String>, json: bool) -> Result<()> {
     let path = registry_path()?;
 
     if let Some(range_spec) = set_range {
@@ -155,7 +176,13 @@ fn cmd_config(show_path: bool, set_range: Option<String>) -> Result<()> {
     }
 
     let registry = load_registry()?;
-    if show_path {
+    if json {
+        if show_path {
+            display_config_json(&registry, Some(&path));
+        } else {
+            display_config_json(&registry, None);
+        }
+    } else if show_path {
         display_config(&registry, Some(&path));
     } else {
         display_config(&registry, None);

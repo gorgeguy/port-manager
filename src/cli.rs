@@ -68,6 +68,10 @@ pub enum Command {
 
         /// Port name (optional - shows all if omitted)
         name: Option<String>,
+
+        /// Output as JSON for scripting
+        #[arg(long)]
+        json: bool,
     },
 
     /// Show all listening ports on the system.
@@ -90,6 +94,10 @@ pub enum Command {
         /// Number of ports to suggest
         #[arg(default_value = "1")]
         count: usize,
+
+        /// Output as JSON for scripting
+        #[arg(long)]
+        json: bool,
     },
 
     /// Show or edit configuration.
@@ -102,5 +110,9 @@ pub enum Command {
         /// Set a port range for a type (format: type=start-end, e.g., "web=8000-8999")
         #[arg(long)]
         set: Option<String>,
+
+        /// Output as JSON for scripting
+        #[arg(long)]
+        json: bool,
     },
 }
