@@ -3,7 +3,8 @@
 //! Handles loading and saving the TOML registry file, including default port ranges.
 
 use std::collections::BTreeMap;
-use std::fs;
+use std::fs::{self, File};
+use std::io::Write;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -85,20 +86,46 @@ pub fn load_registry() -> Result<Registry> {
     Ok(registry)
 }
 
-/// Saves the registry to disk.
+/// Saves the registry to disk using atomic write.
+///
+/// Writes to a temporary file first, syncs to disk, then atomically renames
+/// to the target path. This prevents data corruption if the process is
+/// interrupted during the write.
 pub fn save_registry(registry: &Registry) -> Result<()> {
     let path = registry_path()?;
 
     // Ensure the parent directory exists
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|source| ConfigError::WriteFailed {
-            path: parent.to_path_buf(),
-            source,
-        })?;
-    }
+    let parent = path.parent().ok_or(ConfigError::NoConfigDir)?;
+    fs::create_dir_all(parent).map_err(|source| ConfigError::WriteFailed {
+        path: parent.to_path_buf(),
+        source,
+    })?;
 
     let content = toml::to_string_pretty(registry).map_err(ConfigError::SerializeFailed)?;
-    fs::write(&path, content).map_err(|source| ConfigError::WriteFailed { path, source })?;
+
+    // Create temp file in the same directory (required for atomic rename)
+    let temp_path = parent.join(".registry.toml.tmp");
+
+    // Write to temp file
+    let mut file = File::create(&temp_path).map_err(|source| ConfigError::WriteFailed {
+        path: temp_path.clone(),
+        source,
+    })?;
+
+    file.write_all(content.as_bytes())
+        .map_err(|source| ConfigError::WriteFailed {
+            path: temp_path.clone(),
+            source,
+        })?;
+
+    // Sync to disk to ensure data is persisted
+    file.sync_all().map_err(|source| ConfigError::WriteFailed {
+        path: temp_path.clone(),
+        source,
+    })?;
+
+    // Atomically rename temp file to target
+    fs::rename(&temp_path, &path).map_err(|source| ConfigError::WriteFailed { path, source })?;
 
     Ok(())
 }
