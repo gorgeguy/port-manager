@@ -31,8 +31,13 @@ pub fn allocate_port(
     let allocated_port = match port {
         Some(p) => {
             // Verify port is not already allocated
-            if registry.find_port_owner(p).is_some() {
-                return Err(RegistryError::PortAlreadyAllocated(p).into());
+            if let Some((owner_project, owner_name)) = registry.find_port_owner(p) {
+                return Err(RegistryError::PortAlreadyAllocated {
+                    port: p,
+                    project: owner_project.to_string(),
+                    name: owner_name.to_string(),
+                }
+                .into());
             }
             // Verify port is not currently in use
             if let Some(active) = active_ports.iter().find(|ap| ap.port == p) {
@@ -279,7 +284,7 @@ mod tests {
 
         assert!(matches!(
             result,
-            Err(crate::error::Error::Registry(RegistryError::PortAlreadyAllocated(p))) if p == port(8080)
+            Err(crate::error::Error::Registry(RegistryError::PortAlreadyAllocated { port: p, .. })) if p == port(8080)
         ));
     }
 

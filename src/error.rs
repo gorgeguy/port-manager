@@ -25,7 +25,7 @@ pub enum Error {
 /// Errors related to configuration file operations.
 #[derive(Error, Debug)]
 pub enum ConfigError {
-    #[error("Failed to determine config directory")]
+    #[error("Failed to determine config directory. Set PM_CONFIG_DIR environment variable or ensure ~/.config exists")]
     NoConfigDir,
 
     #[error("Failed to read config file at {path}: {source}")]
@@ -63,19 +63,23 @@ pub enum ConfigError {
 /// Errors related to port registry operations.
 #[derive(Error, Debug)]
 pub enum RegistryError {
-    #[error("Project '{0}' not found")]
+    #[error("Project '{0}' not found. Run 'pm list' to see allocated projects")]
     ProjectNotFound(String),
 
-    #[error("Port name '{name}' not found in project '{project}'")]
+    #[error("Port name '{name}' not found in project '{project}'. Run 'pm get {project}' to see available ports")]
     PortNameNotFound { project: String, name: String },
 
-    #[error("Port {0} is already allocated")]
-    PortAlreadyAllocated(Port),
+    #[error("Port {port} is already allocated to {project}.{name}. Run 'pm list' to see all allocations")]
+    PortAlreadyAllocated {
+        port: Port,
+        project: String,
+        name: String,
+    },
 
     #[error("Port name '{name}' already exists in project '{project}'")]
     PortNameExists { project: String, name: String },
 
-    #[error("No available ports in range {start}-{end}")]
+    #[error("No available ports in range {start}-{end}. Try 'pm free <project>' to release ports or expand the range with 'pm config'")]
     NoAvailablePorts { start: u16, end: u16 },
 
     #[error("Port {port} is in use by {process_name} (PID {pid})")]
@@ -88,7 +92,7 @@ pub enum RegistryError {
     #[error("Invalid range format: expected 'type=start-end' (e.g., web=8000-8999)")]
     InvalidRangeFormat,
 
-    #[error("Invalid port number: '{0}'")]
+    #[error("Invalid port number: '{0}'. Port must be between 1 and 65535")]
     InvalidPortNumber(String),
 
     #[error("Invalid range: start port ({start}) must be less than end port ({end})")]
@@ -98,7 +102,7 @@ pub enum RegistryError {
 /// Errors related to port detection via system calls.
 #[derive(Error, Debug)]
 pub enum PortDetectionError {
-    #[error("Failed to enumerate processes: {0}")]
+    #[error("Failed to enumerate processes: {0}. Try running with elevated privileges (sudo)")]
     ProcessEnumFailed(String),
 
     #[error("Platform not supported")]
