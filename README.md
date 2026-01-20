@@ -3,6 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/port-manager.svg)](https://crates.io/crates/port-manager)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/gorgeguy/port-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/gorgeguy/port-manager/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/gorgeguy/port-manager/branch/main/graph/badge.svg)](https://codecov.io/gh/gorgeguy/port-manager)
 
 A CLI tool for managing port allocations across projects with named ports, auto-suggestion, and active port detection.
 

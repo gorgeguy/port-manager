@@ -490,6 +490,210 @@ fn test_multiple_projects() {
 }
 
 // ============================================================================
+// JSON Output Tests
+// ============================================================================
+
+#[test]
+fn test_list_json() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // Allocate a port first
+    pm_cmd(&config_path)
+        .args(["allocate", "webapp", "web", "8080"])
+        .assert()
+        .success();
+
+    // List with JSON output
+    pm_cmd(&config_path)
+        .args(["list", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"project\""))
+        .stdout(predicate::str::contains("\"port\""))
+        .stdout(predicate::str::contains("8080"))
+        .stdout(predicate::str::contains("webapp"));
+}
+
+#[test]
+fn test_list_json_empty() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // List with JSON output when empty
+    pm_cmd(&config_path)
+        .args(["list", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[]"));
+}
+
+#[test]
+fn test_query_json() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // Allocate a port first
+    pm_cmd(&config_path)
+        .args(["allocate", "webapp", "web", "8080"])
+        .assert()
+        .success();
+
+    // Query with JSON output
+    pm_cmd(&config_path)
+        .args(["query", "webapp", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"name\""))
+        .stdout(predicate::str::contains("\"port\""))
+        .stdout(predicate::str::contains("8080"));
+}
+
+#[test]
+fn test_status_json() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // Status with JSON output
+    pm_cmd(&config_path)
+        .args(["status", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("["));
+}
+
+#[test]
+fn test_status_full() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // Status with --full flag shows DIRECTORY column
+    pm_cmd(&config_path)
+        .args(["status", "--full"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_status_full_json() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // Status with --full --json includes cwd field
+    pm_cmd(&config_path)
+        .args(["status", "--full", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("["));
+}
+
+#[test]
+fn test_suggest_json() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // Suggest with JSON output
+    pm_cmd(&config_path)
+        .args(["suggest", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("["));
+}
+
+#[test]
+fn test_suggest_multiple_json() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // Suggest multiple with JSON output
+    pm_cmd(&config_path)
+        .args(["suggest", "3", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("["));
+}
+
+#[test]
+fn test_config_json() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // Config with JSON output
+    pm_cmd(&config_path)
+        .args(["config", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"ranges\""))
+        .stdout(predicate::str::contains("\"web\""));
+}
+
+#[test]
+fn test_config_path_json() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // Config with --path and JSON output
+    pm_cmd(&config_path)
+        .args(["config", "--path", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"config_file\""))
+        .stdout(predicate::str::contains("\"ranges\""));
+}
+
+// ============================================================================
+// List Filtering Tests
+// ============================================================================
+
+#[test]
+fn test_list_active_only() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // Allocate a port (will be idle since nothing is running on it)
+    pm_cmd(&config_path)
+        .args(["allocate", "webapp", "web", "18080"])
+        .assert()
+        .success();
+
+    // List with --active should not show idle ports
+    pm_cmd(&config_path)
+        .args(["list", "--active"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_list_active_json() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // Allocate a port
+    pm_cmd(&config_path)
+        .args(["allocate", "webapp", "web", "18081"])
+        .assert()
+        .success();
+
+    // List with --active --json
+    pm_cmd(&config_path)
+        .args(["list", "--active", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("["));
+}
+
+#[test]
+fn test_list_unassigned() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // List unassigned ports (ports listening but not in registry)
+    pm_cmd(&config_path)
+        .args(["list", "--unassigned"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_list_unassigned_json() {
+    let (_temp_dir, config_path) = setup_temp_config();
+
+    // List unassigned ports with JSON
+    pm_cmd(&config_path)
+        .args(["list", "--unassigned", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with("["));
+}
+
+// ============================================================================
 // Concurrent Access Tests
 // ============================================================================
 
